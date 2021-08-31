@@ -1,107 +1,22 @@
-import datetime
 import os
 import uuid
-from os import walk
-import numpy as np
 import pandas as pd
-
-def read_file(file_name, time_format, date_time_required=True):
-    data = pd.read_csv(file_name)
-    if date_time_required:
-        data['Time'] = pd.to_datetime(data['Time'], format=time_format)
-    else:
-        data['Time'] = pd.to_datetime(data['Time'], format=time_format).dt.strftime('%H-%M-%S')
-
-    return data
-
-
-def get_image_file_names(image_dir):
-    _, _, filenames = next(walk(image_dir))
-    return filenames
-
-
-def search_a_frame(frames, frame_number):
-    matching = [match for match in frames if "Frame-" + str(int(frame_number)) in match]
-    return matching[0]
-
-
-def get_frame_and_time_of_interest(frames, frame_number, matched_frames, window_size=15):
-    # Pre Processing
-    time_of_frame = matched_frames.replace("Frame-" + str(int(frame_number)) + "-", '')
-    time_of_frame = time_of_frame.replace(".png", '')
-    time_of_frame = datetime.datetime.strptime(time_of_frame, '%H-%M-%S-%f').strftime('%H-%M-%S')
-    time_of_frame = datetime.datetime.strptime(time_of_frame, "%H-%M-%S")
-
-    # Get time + window and time - window
-    frames_at_time_plus_window = (time_of_frame + datetime.timedelta(0, 1))
-    frames_at_time_minus_window = (time_of_frame + datetime.timedelta(0, -window_size))
-    time_of_interests = []
-
-    end_time = time_of_frame
-    while frames_at_time_minus_window < end_time:
-        time_of_interests.append(frames_at_time_minus_window.time().strftime('%H-%M-%S'))
-        frames_at_time_minus_window += datetime.timedelta(0, 1)
-
-    start_time = time_of_frame
-    time_of_interests.append(start_time.time().strftime('%H-%M-%S'))
-    while start_time < frames_at_time_plus_window:
-        start_time += datetime.timedelta(0, 1)
-        # print("Start Time + t", current_frame_time.time().strftime('%H-%M-%S'))
-        time_of_interests.append(start_time.time().strftime('%H-%M-%S'))
-
-    frame_of_interests = []
-    for time in time_of_interests:
-        for frame in frames:
-            if time in frame:
-                frame_of_interests.append(frame)
-
-    return frame_of_interests, time_of_interests
-
-
-def process_data(simulation, individual, data_src_path, data_save_path, meta_data):
-    eye_tracking_data, frame_list, head_tracking_data, verbal_feedbacks = init_data_files(data_src_path)
-    create_dir_if_not_exists(data_save_path)
-
-    for index, verbal_feedback_frames in verbal_feedbacks.iterrows():
-        frame_at_time_t = verbal_feedback_frames['Frame']
-        verbal_feedback = verbal_feedback_frames['CSG']
-        fms = verbal_feedback_frames['CS']
-        matched_frame = search_a_frame(frame_list, frame_at_time_t)
-        frame_of_interest, time_of_interest = get_frame_and_time_of_interest(frame_list, frame_at_time_t, matched_frame,
-                                                                             window_size=window)
-
-        class_directory, eye_name, unique_id = save_eye_tracking_data(data_save_path, eye_tracking_data,
-                                                                      time_of_interest, verbal_feedback)
-        head_name = save_head_tracking_data(data_save_path, head_tracking_data, time_of_interest, unique_id)
-
-        meta_data = meta_data.append({'uid': unique_id, 'individual': individual, 'simulation': simulation,
-                                      'eye': eye_name, 'head': head_name,
-                                      'cs_severity_class': class_directory, 'fms': fms}, ignore_index=True)
-    return meta_data
+import util.helper as helper
 
 
 def init_data_files(data_src_path):
     image_dir = data_src_path + 'Frames'
-    frame_list = get_image_file_names(image_dir)
+    frame_list = helper.get_image_file_names(image_dir)
     # Get Verbal Feedback
     verbal_feedback_file = data_src_path + '/' + 'verbal_global.csv'
-    verbal_feedbacks = read_file(verbal_feedback_file, time_format='%Y.%m.%d %H:%M:%S:%f')
+    verbal_feedbacks = helper.read_file(verbal_feedback_file, time_format='%Y.%m.%d %H:%M:%S:%f')
     # Eye tracking data
-    eye_tracking_data = read_file(data_src_path + '/' + 'eye_tracking.csv', time_format='%H-%M-%S-%f',
-                                  date_time_required=False)
+    eye_tracking_data = helper.read_file(data_src_path + '/' + 'eye_tracking.csv', time_format='%H-%M-%S-%f',
+                                         date_time_required=False)
     # Head tracking data
-    head_tracking_data = read_file(data_src_path + '/' + 'head_tracking.csv', time_format='%H-%M-%S-%f',
-                                   date_time_required=False)
+    head_tracking_data = helper.read_file(data_src_path + '/' + 'head_tracking.csv', time_format='%H-%M-%S-%f',
+                                          date_time_required=False)
     return eye_tracking_data, frame_list, head_tracking_data, verbal_feedbacks
-
-
-def create_dir_if_not_exists(data_save_path):
-    # Make Sure to create the data save directory
-    if not os.path.exists(data_save_path):
-        os.makedirs(data_save_path)
-    # Create data save dirs
-    os.makedirs(data_save_path + '/eye', exist_ok=True)
-    os.makedirs(data_save_path + '/head', exist_ok=True)
 
 
 def save_head_tracking_data(data_save_path, head_tracking_data, time_of_interest, unique_id):
@@ -143,19 +58,40 @@ def save_eye_tracking_data(data_save_path, eye_tracking_data, time_of_interest, 
     return class_directory, eye_name, unique_id
 
 
+def process_data(simulation, individual, data_src_path, data_save_path, meta_data):
+    eye_tracking_data, frame_list, head_tracking_data, verbal_feedbacks = init_data_files(data_src_path)
+    helper.create_dir_if_not_exists(data_save_path)
+
+    for index, verbal_feedback_frames in verbal_feedbacks.iterrows():
+        frame_at_time_t = verbal_feedback_frames['Frame']
+        verbal_feedback = verbal_feedback_frames['CSG']
+        fms = verbal_feedback_frames['CS']
+        matched_frame = helper.search_a_frame(frame_list, frame_at_time_t)
+        frame_of_interest, time_of_interest = helper.get_frame_and_time_of_interest(frame_list, frame_at_time_t,
+                                                                                    matched_frame,
+                                                                                    window_size=window)
+
+        class_directory, eye_name, unique_id = save_eye_tracking_data(data_save_path, eye_tracking_data,
+                                                                      time_of_interest, verbal_feedback)
+        head_name = save_head_tracking_data(data_save_path, head_tracking_data, time_of_interest, unique_id)
+
+        meta_data = meta_data.append({'uid': unique_id, 'individual': individual, 'simulation': simulation,
+                                      'eye': eye_name, 'head': head_name,
+                                      'cs_severity_class': class_directory, 'fms': fms}, ignore_index=True)
+    return meta_data
+
+
 def start_data_processing(data_path, data_save_directory, make_class=False):
     simulations = os.listdir(data_path)
     print("Simulation List: ", simulations)
-    meta_data = pd.DataFrame(
-        columns=['uid', 'individual', 'simulation', 'frame', 'eye', 'head', 'cs_class', 'fms'])
-
+    meta_data = pd.DataFrame(columns=['uid', 'individual', 'simulation', 'eye', 'head', 'cs_severity_class', 'fms'])
     meta_file = data_save_directory + 'meta_data.csv'
 
     for simulation in simulations:
         simulation_path = os.path.join(data_path, simulation + '/')
         individual_list = os.listdir(simulation_path)
         for individual in individual_list:
-            print(f"Processing Individual {individual} in simulation {simulation}")
+            print(f"Processing Individual- {individual} in simulation {simulation}")
             indiv_data_save_dir = os.path.join(data_save_directory, simulation + '/' + individual)
 
             # Creating data Save Directories
@@ -171,68 +107,7 @@ def start_data_processing(data_path, data_save_directory, make_class=False):
             meta_data.to_csv(meta_file)
 
 
-def process_verbal_feedback(path):
-    simulations = os.listdir(path)
-    print("Simulation List: ", simulations)
-    fms = 0
-    for simulation in simulations:
-        simulation_path = os.path.join(path, simulation + '/')
-        individual_list = os.listdir(simulation_path)
-        print(simulation)
-        total_indiv = len(individual_list)
-        for individual in individual_list:
-            individual_raw_data_path = os.path.join(simulation_path, individual + '/')
-            verbal_feedback_file = individual_raw_data_path + 'verbal_feedback.csv'
-            verbal_feedbacks = read_file(verbal_feedback_file, time_format='%Y.%m.%d %H:%M:%S:%f')
-            cs = verbal_feedbacks['CS']
-            if cs.shape[0] < 13:
-                i = cs.shape[0]
-                while i < 13:
-                    cs._set_value(i, 0)
-                    i += 1
-            fms = fms + cs.to_numpy()
-
-        print("FMS: ", fms)
-
-        for individual in individual_list:
-            individual_raw_data_path = os.path.join(simulation_path, individual + '/')
-            verbal_feedback_file = individual_raw_data_path + 'verbal_feedback.csv'
-            verbal_feedbacks = read_file(verbal_feedback_file, time_format='%Y.%m.%d %H:%M:%S:%f')
-
-            CGS = pd.DataFrame({'CSG': fms / total_indiv})
-            CGS = pd.concat([verbal_feedbacks, CGS], axis=1)
-            CGS['Time'] = pd.to_datetime(CGS['Time'], format='%Y.%m.%d %H:%M:%S:%f')
-            CGS = CGS.dropna()
-            print(CGS)
-            save_file = individual_raw_data_path + 'verbal_global.csv'
-            # CGS.to_csv(save_file, date_format='%Y.%m.%d %H:%M:%S:%f', index=False)
-
-        fms = 0
-
-
-def get_class_rule(path):
-    simulations = os.listdir(path)
-    tmp = []
-    for simulation in simulations:
-        simulation_path = os.path.join(path, simulation + '/')
-        individual_list = os.listdir(simulation_path)
-        print(simulation)
-
-        for individual in individual_list:
-            individual_raw_data_path = os.path.join(simulation_path, individual + '/')
-            verbal_feedback_file = individual_raw_data_path + 'verbal_global.csv'
-            verbal_feedbacks = read_file(verbal_feedback_file, time_format='%Y.%m.%d %H:%M:%S:%f')
-            cs = verbal_feedbacks['CSG']  # TODO: Convert to GCS
-            tmp.extend(cs.to_numpy())
-
-    all_cs = np.array(tmp)
-    print(np.percentile(all_cs, 25))
-    print(np.percentile(all_cs, 50))
-    print(np.percentile(all_cs, 75))
-    # print("Shape: ", tmp.shape)
-
-
-# ................................................. SETUP CONFIGURATIONS ..............................................
+# ................................................. Main File ..............................................
 if __name__ == "__main__":
     # Video Save Config
     frame_size = (512, 256)
@@ -242,9 +117,5 @@ if __name__ == "__main__":
     fps = 20
     path = 'data/raw/'
     data_save_dir = 'data/forecast_data/'
-    class_rule = {'low': 0.66, 'medium': 1.0, 'high': 2.0}
-
-    # process_verbal_feedback(path)
-    # get_class_rule(path)
+    class_rule = {'low': 0.66, 'medium': 1.0, 'high': 2.0}  # See analysis of verbal feedback file
     start_data_processing(path, data_save_dir, make_class=True)
-# ................................................. SETUP CONFIGURATIONS END ...........................................
