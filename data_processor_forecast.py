@@ -69,7 +69,7 @@ def process_data(simulation, individual, data_src_path, data_save_path, meta_dat
         matched_frame = helper.search_a_frame(frame_list, frame_at_time_t)
         frame_of_interest, time_of_interest = helper.get_frame_and_time_of_interest(frame_list, frame_at_time_t,
                                                                                     matched_frame,
-                                                                                    window_size=window)
+                                                                                    window_size=interest_window)
 
         class_directory, eye_name, unique_id = save_eye_tracking_data(data_save_path, eye_tracking_data,
                                                                       time_of_interest, verbal_feedback)
@@ -91,31 +91,30 @@ def start_data_processing(data_path, data_save_directory, make_class=False):
         simulation_path = os.path.join(data_path, simulation + '/')
         individual_list = os.listdir(simulation_path)
         for individual in individual_list:
-            print(f"Processing Individual- {individual} in simulation {simulation}")
-            indiv_data_save_dir = os.path.join(data_save_directory, simulation + '/' + individual)
+            print(f"Processing individual- {individual} in simulation {simulation}")
+            ind_data_save_dir = os.path.join(data_save_directory, simulation + '/' + individual)
 
             # Creating data Save Directories
             if not make_class:
-                if not os.path.exists(indiv_data_save_dir):
-                    os.makedirs(indiv_data_save_dir)
+                if not os.path.exists(ind_data_save_dir):
+                    os.makedirs(ind_data_save_dir)
 
             # Individual Raw Data Path
             individual_raw_data_path = os.path.join(simulation_path, individual + '/')
 
             meta_data = process_data(simulation, individual, individual_raw_data_path, data_save_directory,
                                      meta_data)
+
             meta_data.to_csv(meta_file)
 
 
 # ................................................. Main File ..............................................
 if __name__ == "__main__":
-    # Video Save Config
-    frame_size = (512, 256)
-    window = 30
+    interest_window = 30
     min_fms = 0.00
     max_fms = 10.00
     fps = 20
-    path = 'data/raw/'
-    data_save_dir = 'data/forecast_data/'
+    path = '/media/save-lab/Data/data/raw'
+    data_save_dir = '../../processed_data/forecast_data/'
     class_rule = {'low': 0.66, 'medium': 1.0, 'high': 2.0}  # See analysis of verbal feedback file
     start_data_processing(path, data_save_dir, make_class=True)

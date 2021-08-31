@@ -66,4 +66,3 @@ def get_frame_and_time_of_interest(frames, frame_number, matched_frames, window_
                 frame_of_interests.append(frame)
 
     return frame_of_interests, time_of_interests
-
