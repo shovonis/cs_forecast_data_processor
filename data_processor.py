@@ -37,7 +37,7 @@ def get_frame_and_time_of_interest(frames, frame_number, matched_frames, window_
     time_of_frame = datetime.datetime.strptime(time_of_frame, "%H-%M-%S")
 
     # Get time + window and time - window
-    frames_at_time_plus_window = (time_of_frame + datetime.timedelta(0, 3))
+    frames_at_time_plus_window = (time_of_frame + datetime.timedelta(0, 1))
     frames_at_time_minus_window = (time_of_frame + datetime.timedelta(0, -window_size))
     time_of_interests = []
 
@@ -132,45 +132,48 @@ def process_data_per_class(simulation, individual, data_src_path, data_save_path
         matched_frame = search_a_frame(frame_list, frame_at_time_t)
         frame_of_interest, time_of_interest = get_frame_and_time_of_interest(frame_list, frame_at_time_t, matched_frame,
                                                                              window_size=window)
+
         class_directory = ''
-        if float(verbal_feedback) == class_rule["low"]:
-            class_directory = '0'
+        if 0.00 <= float(verbal_feedback) <= class_rule["low"]:
+            class_directory = '0'  # No sicknes (None)
         if class_rule['low'] < float(verbal_feedback) <= class_rule['medium']:
-            class_directory = '1'
+            class_directory = '1'  # Low sickness
         if class_rule['medium'] < float(verbal_feedback) <= class_rule['high']:
-            class_directory = '2'
+            class_directory = '2'  # Moderate sickness
+        if class_rule['high'] < float(verbal_feedback) <= 10.00:
+            class_directory = '3'  # High sickness
 
         # Generate Unique File Identifier
         unique_id = str(uuid.uuid4())[:16]
 
         # Save the video clips
-        clips_dir = data_save_path + '/clips/'
-        if not os.path.exists(clips_dir):
-            os.makedirs(clips_dir)
-        clip_name = '/clip-' + unique_id + '.mp4'
-        video_name = clips_dir + clip_name
-        create_and_save_video(video_name, frame_of_interest, image_directory=image_dir)
-
-        # Save Frames
-        frame_name = '/frames/' + '/' + unique_id + '/'
-        frame_save_dir = data_save_path + frame_name
-        save_frames(frame_save_dir, frame_of_interest, image_directory=image_dir)
-
-        # Save Optical  Flow
-        optic_dir = data_save_path + '/optic/'
-        if not os.path.exists(optic_dir):
-            os.makedirs(optic_dir)
-        flow_name = '/optic-' + unique_id + '.mp4'
-        optical_flow_save_dir = optic_dir + flow_name
-        optical_flow.get_optical_flow(video_name, optical_flow_save_dir)
-
-        # Save Disparity Map
-        disp_dir = data_save_path + '/disp/'
-        if not os.path.exists(disp_dir):
-            os.makedirs(disp_dir)
-        disp_name = '/disp-' + unique_id + '.mp4'
-        d_video_name = disp_dir + disp_name
-        create_disparity_video(d_video_name, frame_of_interest, image_directory=image_dir)
+        # clips_dir = data_save_path + '/clips/'
+        # if not os.path.exists(clips_dir):
+        #     os.makedirs(clips_dir)
+        # clip_name = '/clip-' + unique_id + '.mp4'
+        # video_name = clips_dir + clip_name
+        # create_and_save_video(video_name, frame_of_interest, image_directory=image_dir)
+        #
+        # # Save Frames
+        # frame_name = '/frames' + '/' + unique_id + '/'
+        # frame_save_dir = data_save_path + frame_name
+        # save_frames(frame_save_dir, frame_of_interest, image_directory=image_dir)
+        #
+        # # Save Optical  Flow
+        # optic_dir = data_save_path + '/optic/'
+        # if not os.path.exists(optic_dir):
+        #     os.makedirs(optic_dir)
+        # flow_name = '/optic-' + unique_id + '.mp4'
+        # optical_flow_save_dir = optic_dir + flow_name
+        # optical_flow.get_optical_flow(video_name, optical_flow_save_dir)
+        #
+        # # Save Disparity Map
+        # disp_dir = data_save_path + '/disp/'
+        # if not os.path.exists(disp_dir):
+        #     os.makedirs(disp_dir)
+        # disp_name = '/disp-' + unique_id + '.mp4'
+        # d_video_name = disp_dir + disp_name
+        # create_disparity_video(d_video_name, frame_of_interest, image_directory=image_dir)
 
         # Save Eye_tracking
         eye_dir = data_save_path + '/eye/'
@@ -179,10 +182,14 @@ def process_data_per_class(simulation, individual, data_src_path, data_save_path
         eye_name = '/eye-' + unique_id + '.csv'
         e_file = eye_dir + eye_name
         data = eye_tracking_data[eye_tracking_data['Time'].isin(time_of_interest)]
+
+        data.insert(0, 'cs', class_directory)
+        data.insert(1, 'fms', fms)
+
         data.to_csv(e_file, index=False, columns=['#Frame', 'Convergence_distance', 'LeftPupilDiameter',
                                                   'RightPupilDiameter', 'NrmSRLeftEyeGazeDirX', 'NrmSRLeftEyeGazeDirY',
                                                   'NrmSRLeftEyeGazeDirZ', 'NrmSRRightEyeGazeDirX',
-                                                  'NrmSRRightEyeGazeDirY', 'NrmSRRightEyeGazeDirZ'])
+                                                  'NrmSRRightEyeGazeDirY', 'NrmSRRightEyeGazeDirZ', 'cs', 'fms'])
 
         # # # Save Head Tracking
         head_dir = data_save_path + '/head/'
@@ -191,12 +198,16 @@ def process_data_per_class(simulation, individual, data_src_path, data_save_path
         head_name = '/head-' + unique_id + '.csv'
         h_file = head_dir + head_name
         data = head_tracking_data[head_tracking_data['Time'].isin(time_of_interest)]
+
+        data.insert(0, 'cs', class_directory)
+        data.insert(1, 'fms', fms)
+
         data.to_csv(h_file, index=False, columns=['#Frame', 'HeadQRotationX', 'HeadQRotationY', 'HeadQRotationZ',
-                                                  'HeadQRotationW'])
+                                                  'HeadQRotationW', 'cs', 'fms'])
 
         meta_data = meta_data.append({'uid': unique_id, 'individual': individual, 'simulation': simulation,
-                                      'frame': frame_name, 'video_clip': clip_name,
-                                      'optical': flow_name, 'disparity': disp_name,
+                                      # 'frame': frame_name, 'video_clip': clip_name,
+                                      # 'optical': flow_name, 'disparity': disp_name,
                                       'eye': eye_name, 'head': head_name,
                                       'cs_class': class_directory, 'fms': fms},
                                      ignore_index=True)
@@ -280,9 +291,9 @@ def get_class_rule(path):
 
         for individual in individual_list:
             individual_raw_data_path = os.path.join(simulation_path, individual + '/')
-            verbal_feedback_file = individual_raw_data_path + 'verbal_feedback.csv'
+            verbal_feedback_file = individual_raw_data_path + 'verbal_global.csv'
             verbal_feedbacks = read_file(verbal_feedback_file, time_format='%Y.%m.%d %H:%M:%S:%f')
-            cs = verbal_feedbacks['CS']  # TODO: Convert to GCS
+            cs = verbal_feedbacks['CSG']  # TODO: Convert to GCS
             tmp.extend(cs.to_numpy())
 
     all_cs = np.array(tmp)
@@ -296,13 +307,13 @@ def get_class_rule(path):
 if __name__ == "__main__":
     # Video Save Config
     frame_size = (512, 256)
-    window = 10
+    window = 30
     fps = 20
     path = 'data/raw/'
     data_save_dir = 'data/processed/'
-    class_rule = {'low': 0.0, 'medium': 1.0, 'high': 2.0}
+    class_rule = {'low': 0.66, 'medium': 1.0, 'high': 2.0}
 
     # process_verbal_feedback(path)
-    get_class_rule(path)
-    # start_data_processing(path, data_save_dir, make_class=True)
+    # get_class_rule(path)
+    start_data_processing(path, data_save_dir, make_class=True)
 # ................................................. SETUP CONFIGURATIONS END ...........................................
