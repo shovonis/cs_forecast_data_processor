@@ -35,7 +35,7 @@ def save_head_tracking_data(data_save_path, head_tracking_data, time_of_interest
 def save_eye_tracking_data(data_save_path, eye_tracking_data, time_of_interest, verbal_feedback):
     class_directory = ''
     if min_fms <= float(verbal_feedback) <= class_rule["low"]:
-        class_directory = '0'  # No sicknes (None)
+        class_directory = '0'  # No Sickness (None)
     if class_rule['low'] < float(verbal_feedback) <= class_rule['medium']:
         class_directory = '1'  # Low sickness
     if class_rule['medium'] < float(verbal_feedback) <= class_rule['high']:
@@ -51,10 +51,12 @@ def save_eye_tracking_data(data_save_path, eye_tracking_data, time_of_interest, 
     eye_name = '/eye-' + unique_id + '.csv'
     e_file = eye_dir + eye_name
     data = eye_tracking_data[eye_tracking_data['Time'].isin(time_of_interest)]
+
     data.to_csv(e_file, index=False, columns=['#Frame', 'Convergence_distance', 'LeftPupilDiameter',
                                               'RightPupilDiameter', 'NrmSRLeftEyeGazeDirX', 'NrmSRLeftEyeGazeDirY',
                                               'NrmSRLeftEyeGazeDirZ', 'NrmSRRightEyeGazeDirX',
                                               'NrmSRRightEyeGazeDirY', 'NrmSRRightEyeGazeDirZ'])
+
     return class_directory, eye_name, unique_id
 
 
@@ -67,9 +69,9 @@ def process_data(simulation, individual, data_src_path, data_save_path, meta_dat
         verbal_feedback = verbal_feedback_frames['CSG']
         fms = verbal_feedback_frames['CS']
         matched_frame = helper.search_a_frame(frame_list, frame_at_time_t)
-        frame_of_interest, time_of_interest = helper.get_frame_and_time_of_interest(frame_list, frame_at_time_t,
-                                                                                    matched_frame,
-                                                                                    window_size=interest_window)
+        time_of_interest = helper.get_frame_and_time_of_interest(frame_list, frame_at_time_t,
+                                                                 matched_frame,
+                                                                 window_size=interest_window)
 
         class_directory, eye_name, unique_id = save_eye_tracking_data(data_save_path, eye_tracking_data,
                                                                       time_of_interest, verbal_feedback)
@@ -82,27 +84,26 @@ def process_data(simulation, individual, data_src_path, data_save_path, meta_dat
 
 
 def start_data_processing(data_path, data_save_directory, make_class=False):
-    simulations = os.listdir(data_path)
-    print("Simulation List: ", simulations)
+    participant_list = os.listdir(data_path)
+    print("Participants List: ", participant_list)
     meta_data = pd.DataFrame(columns=['uid', 'individual', 'simulation', 'eye', 'head', 'cs_severity_class', 'fms'])
     meta_file = data_save_directory + 'meta_data.csv'
 
-    for simulation in simulations:
-        simulation_path = os.path.join(data_path, simulation + '/')
-        individual_list = os.listdir(simulation_path)
-        for individual in individual_list:
-            print(f"Processing individual- {individual} in simulation {simulation}")
-            ind_data_save_dir = os.path.join(data_save_directory, simulation + '/' + individual)
-
+    for participant in participant_list:
+        participant_path = os.path.join(data_path, participant + '/')
+        simulations = os.listdir(participant_path)
+        for sim in simulations:
+            print(f"Processing individual- {participant} in {sim}")
+            ind_data_save_dir = os.path.join(data_save_directory, participant + '/' + sim)
             # Creating data Save Directories
-            if not make_class:
-                if not os.path.exists(ind_data_save_dir):
-                    os.makedirs(ind_data_save_dir)
+            if not os.path.exists(ind_data_save_dir):
+                os.makedirs(ind_data_save_dir)
 
             # Individual Raw Data Path
-            individual_raw_data_path = os.path.join(simulation_path, individual + '/')
-
-            meta_data = process_data(simulation, individual, individual_raw_data_path, data_save_directory,
+            individual_raw_data_path = os.path.join(participant_path, sim + '/')
+            print("Individual Raw Data directory: ", individual_raw_data_path)
+            print("Participants Data Save Dir: ", ind_data_save_dir)
+            meta_data = process_data(participant, sim, individual_raw_data_path, ind_data_save_dir,
                                      meta_data)
 
             meta_data.to_csv(meta_file)
@@ -114,7 +115,7 @@ if __name__ == "__main__":
     min_fms = 0.00
     max_fms = 10.00
     fps = 20
-    path = '/media/save-lab/Data/data/raw'
+    path = '/media/save-lab/Data/data/data_raw'
     data_save_dir = '../../processed_data/forecast_data/'
     class_rule = {'low': 0.66, 'medium': 1.0, 'high': 2.0}  # See analysis of verbal feedback file
-    start_data_processing(path, data_save_dir, make_class=True)
+    start_data_processing(path, data_save_dir, make_class=False)

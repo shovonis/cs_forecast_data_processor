@@ -43,7 +43,6 @@ def get_frame_and_time_of_interest(frames, frame_number, matched_frames, window_
     time_of_frame = datetime.datetime.strptime(time_of_frame, "%H-%M-%S")
 
     # Get time + window and time - window
-    frames_at_time_plus_window = (time_of_frame + datetime.timedelta(0, 1))
     frames_at_time_minus_window = (time_of_frame + datetime.timedelta(0, -window_size))
     time_of_interests = []
 
@@ -52,17 +51,4 @@ def get_frame_and_time_of_interest(frames, frame_number, matched_frames, window_
         time_of_interests.append(frames_at_time_minus_window.time().strftime('%H-%M-%S'))
         frames_at_time_minus_window += datetime.timedelta(0, 1)
 
-    start_time = time_of_frame
-    time_of_interests.append(start_time.time().strftime('%H-%M-%S'))
-    while start_time < frames_at_time_plus_window:
-        start_time += datetime.timedelta(0, 1)
-        # print("Start Time + t", current_frame_time.time().strftime('%H-%M-%S'))
-        time_of_interests.append(start_time.time().strftime('%H-%M-%S'))
-
-    frame_of_interests = []
-    for time in time_of_interests:
-        for frame in frames:
-            if time in frame:
-                frame_of_interests.append(frame)
-
-    return frame_of_interests, time_of_interests
+    return time_of_interests
