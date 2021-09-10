@@ -30,29 +30,34 @@ def define_class_rule(verbal_feedback):
     return class_directory
 
 
-def save_head_tracking_data(data_save_path, head_tracking_data, time_of_interest, unique_id):
+def save_head_tracking_data(data_save_path, head_tracking_data, time_of_interest, unique_id, cs_severity, fms):
     head_dir = data_save_path + '/head/'
     if not os.path.exists(head_dir):
         os.makedirs(head_dir)
     head_data_file = '/head-' + unique_id + '.csv'
     h_file = head_dir + head_data_file
     data = head_tracking_data[head_tracking_data['Time'].isin(time_of_interest)]
-    data.to_csv(h_file, index=False, columns=['#Frame', 'HeadQRotationX', 'HeadQRotationY', 'HeadQRotationZ',
+    data["fms"] = fms
+    data["cs_severity_class"] = cs_severity
+    data.to_csv(h_file, index=False, columns=['#Frame', 'fms', "cs_severity_class", 'HeadQRotationX', 'HeadQRotationY', 'HeadQRotationZ',
                                               'HeadQRotationW'])
     return head_data_file
 
 
-def save_eye_tracking_data(data_save_path, eye_tracking_data, time_of_interest, unique_id):
+def save_eye_tracking_data(data_save_path, eye_tracking_data, time_of_interest, unique_id, cs_severity, fms):
     eye_dir = data_save_path + '/eye/'
     if not os.path.exists(eye_dir):
         os.makedirs(eye_dir)
     eye_data_file = '/eye-' + unique_id + '.csv'
     e_file = eye_dir + eye_data_file
     data = eye_tracking_data[eye_tracking_data['Time'].isin(time_of_interest)]
-    data.to_csv(e_file, index=False, columns=['#Frame', 'Convergence_distance', 'LeftPupilDiameter',
-                                              'RightPupilDiameter', 'NrmSRLeftEyeGazeDirX', 'NrmSRLeftEyeGazeDirY',
-                                              'NrmSRLeftEyeGazeDirZ', 'NrmSRRightEyeGazeDirX',
-                                              'NrmSRRightEyeGazeDirY', 'NrmSRRightEyeGazeDirZ'])
+    data["fms"] = fms
+    data["cs_severity_class"] = cs_severity
+    data.to_csv(e_file, index=False,
+                columns=['#Frame', 'fms', "cs_severity_class", 'Convergence_distance', 'LeftPupilDiameter',
+                         'RightPupilDiameter', 'NrmSRLeftEyeGazeDirX', 'NrmSRLeftEyeGazeDirY',
+                         'NrmSRLeftEyeGazeDirZ', 'NrmSRRightEyeGazeDirX',
+                         'NrmSRRightEyeGazeDirY', 'NrmSRRightEyeGazeDirZ'])
 
     return eye_data_file
 
@@ -72,8 +77,9 @@ def process_data(simulation, individual, data_src_path, data_save_path, meta_dat
         unique_id = str(uuid.uuid4())[:16]
         class_directory = define_class_rule(verbal_feedback)
         eye_name = save_eye_tracking_data(data_save_path, eye_tracking_data,
-                                          time_of_interest, unique_id)
-        head_name = save_head_tracking_data(data_save_path, head_tracking_data, time_of_interest, unique_id)
+                                          time_of_interest, unique_id, class_directory, fms)
+        head_name = save_head_tracking_data(data_save_path, head_tracking_data, time_of_interest, unique_id,
+                                            class_directory, fms)
 
         meta_data = meta_data.append({'uid': unique_id, 'individual': individual, 'simulation': simulation,
                                       'eye': eye_name, 'head': head_name,
