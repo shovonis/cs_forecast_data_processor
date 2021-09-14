@@ -2,6 +2,7 @@ import os
 import uuid
 import pandas as pd
 import util.helper as helper
+import datetime
 
 
 def init_data_files(data_src_path):
@@ -39,8 +40,9 @@ def save_head_tracking_data(data_save_path, head_tracking_data, time_of_interest
     data = head_tracking_data[head_tracking_data['Time'].isin(time_of_interest)]
     data["fms"] = fms
     data["cs_severity_class"] = cs_severity
-    data.to_csv(h_file, index=False, columns=['#Frame', 'fms', "cs_severity_class", 'HeadQRotationX', 'HeadQRotationY', 'HeadQRotationZ',
-                                              'HeadQRotationW'])
+    data.to_csv(h_file, index=False,
+                columns=['#Frame', 'fms', "cs_severity_class", 'HeadQRotationX', 'HeadQRotationY', 'HeadQRotationZ',
+                         'HeadQRotationW'])
     return head_data_file
 
 
@@ -62,6 +64,38 @@ def save_eye_tracking_data(data_save_path, eye_tracking_data, time_of_interest, 
     return eye_data_file
 
 
+def save_physiological_data(data_save_path, time_of_interest, individual, unique_id, cs, fms):
+    physio_data_path = physiological_data_path + "/" + individual
+    hr_data_save_path = data_save_path + "/hr/"
+    if not os.path.exists(hr_data_save_path):
+        os.makedirs(hr_data_save_path)
+    hr_file_name = '/hr-' + unique_id + '.csv'
+    full_path = hr_data_save_path + hr_file_name
+    hr_data = pre_pare_hr_data(physio_data_path, time_of_interest)
+    hr_data["fms"] = fms
+    hr_data["cs_severity_class"] = cs
+    hr_data.to_csv(full_path, index=False)
+
+    return hr_file_name
+
+
+def pre_pare_hr_data(physio_data_path, toi):
+    # Process HR data
+    hr_file = physio_data_path + "/HR.csv"
+    hr_data = pd.read_csv(hr_file, header=None)
+    date_time = pd.Timestamp(float(hr_data.iloc[0]), unit='s', tz='US/Central')  # Reset timezone to US/Central
+    hr_data = hr_data.drop([0, 1])
+    hr_data.columns = ["HR"]
+    hr_time = []
+    for i in range(len(hr_data)):
+        next_time = date_time + datetime.timedelta(0, i)
+        hr_time.append(next_time.strftime('%I-%M-%S'))
+    hr_data["Time"] = hr_time
+    filtered_hr_data = hr_data[hr_data["Time"].isin(toi)]
+
+    return filtered_hr_data
+
+
 def process_data(simulation, individual, data_src_path, data_save_path, meta_data):
     eye_tracking_data, frame_list, head_tracking_data, verbal_feedbacks = init_data_files(data_src_path)
     helper.create_dir_if_not_exists(data_save_path)
@@ -81,8 +115,11 @@ def process_data(simulation, individual, data_src_path, data_save_path, meta_dat
         head_name = save_head_tracking_data(data_save_path, head_tracking_data, time_of_interest, unique_id,
                                             class_directory, fms)
 
+        physio_name = save_physiological_data(data_save_path, time_of_interest, individual, unique_id,
+                                              class_directory, fms)
+
         meta_data = meta_data.append({'uid': unique_id, 'individual': individual, 'simulation': simulation,
-                                      'eye': eye_name, 'head': head_name,
+                                      'eye': eye_name, 'head': head_name, 'hr': physio_name,
                                       'cs_severity_class': class_directory, 'fms': fms}, ignore_index=True)
     return meta_data
 
@@ -119,7 +156,9 @@ if __name__ == "__main__":
     min_fms = 0.00
     max_fms = 10.00
     fps = 20
-    path = '/media/save-lab/Data/data/data_raw'
+    path = '/media/save-lab/Data/data/data_raw/hmd_data'
+    physiological_data_path = "/media/save-lab/Data/data/data_raw/physiological_data"
+
     data_save_dir = '../../processed_data/forecast_data/'
     class_rule = {'low': 0.66, 'medium': 1.0, 'high': 2.0}  # See analysis of verbal feedback file
     start_data_processing(path, data_save_dir, make_class=False)
