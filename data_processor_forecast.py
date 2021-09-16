@@ -3,6 +3,7 @@ import uuid
 import pandas as pd
 import util.helper as helper
 import datetime
+import numpy as np
 
 
 def init_data_files(data_src_path):
@@ -38,11 +39,14 @@ def save_head_tracking_data(data_save_path, head_tracking_data, time_of_interest
     head_data_file = '/head-' + unique_id + '.csv'
     h_file = head_dir + head_data_file
     data = head_tracking_data[head_tracking_data['Time'].isin(time_of_interest)]
-    data["fms"] = fms
-    data["cs_severity_class"] = cs_severity
-    data.to_csv(h_file, index=False,
-                columns=['#Frame', 'fms', "cs_severity_class", 'HeadQRotationX', 'HeadQRotationY', 'HeadQRotationZ',
-                         'HeadQRotationW'])
+
+    data = data.groupby('Time').mean()
+    data.insert(1, "fms", fms)
+    data.insert(2, "cs_severity_class", cs_severity)
+
+    data.to_csv(h_file, index=True,
+                columns=['fms', "cs_severity_class", 'HeadQRotationX', 'HeadQRotationY', 'HeadQRotationZ',
+                         'HeadQRotationW', 'HeadEulX', 'HeadEulY', 'HeadEulZ'], float_format='%.3f')
     return head_data_file
 
 
@@ -53,33 +57,22 @@ def save_eye_tracking_data(data_save_path, eye_tracking_data, time_of_interest, 
     eye_data_file = '/eye-' + unique_id + '.csv'
     e_file = eye_dir + eye_data_file
     data = eye_tracking_data[eye_tracking_data['Time'].isin(time_of_interest)]
-    data["fms"] = fms
-    data["cs_severity_class"] = cs_severity
-    data.to_csv(e_file, index=False,
-                columns=['#Frame', 'fms', "cs_severity_class", 'Convergence_distance', 'LeftPupilDiameter',
-                         'RightPupilDiameter', 'NrmSRLeftEyeGazeDirX', 'NrmSRLeftEyeGazeDirY',
-                         'NrmSRLeftEyeGazeDirZ', 'NrmSRRightEyeGazeDirX',
-                         'NrmSRRightEyeGazeDirY', 'NrmSRRightEyeGazeDirZ'])
+
+    data["ConvergenceValid"] = data["ConvergenceValid"].astype(bool)
+    data = data[data["ConvergenceValid"] == True]
+    data.drop(["#Frame", "ConvergenceValid", "Left_Eye_Closed", "Right_Eye_Closed", "LocalGazeValid",
+               "WorldGazeValid"], axis=1, inplace=True)
+
+    # Group By second to get second only value.
+    data = data.groupby('Time').mean()
+    data.insert(1, "fms", fms)
+    data.insert(2, "cs_severity_class", cs_severity)
+    data.to_csv(e_file, index=True, float_format='%.3f')
 
     return eye_data_file
 
 
-def save_physiological_data(data_save_path, time_of_interest, individual, unique_id, cs, fms):
-    physio_data_path = physiological_data_path + "/" + individual
-    hr_data_save_path = data_save_path + "/hr/"
-    if not os.path.exists(hr_data_save_path):
-        os.makedirs(hr_data_save_path)
-    hr_file_name = '/hr-' + unique_id + '.csv'
-    full_path = hr_data_save_path + hr_file_name
-    hr_data = pre_pare_hr_data(physio_data_path, time_of_interest)
-    hr_data["fms"] = fms
-    hr_data["cs_severity_class"] = cs
-    hr_data.to_csv(full_path, index=False)
-
-    return hr_file_name
-
-
-def pre_pare_hr_data(physio_data_path, toi):
+def prepare_hr_data(physio_data_path, toi):
     # Process HR data
     hr_file = physio_data_path + "/HR.csv"
     hr_data = pd.read_csv(hr_file, header=None)
@@ -94,6 +87,49 @@ def pre_pare_hr_data(physio_data_path, toi):
     filtered_hr_data = hr_data[hr_data["Time"].isin(toi)]
 
     return filtered_hr_data
+
+
+def prepare_eda_data(physio_data_path, toi):
+    # Process HR data
+    eda_file = physio_data_path + "/EDA.csv"
+    eda_data = pd.read_csv(eda_file, header=None)
+    date_time = pd.Timestamp(float(eda_data.iloc[0]), unit='s', tz='US/Central')  # Reset timezone to US/Central
+    eda_data = eda_data.drop([0, 1])
+    eda_data.columns = ["EDA"]
+    eda_data = eda_data.groupby(np.arange(len(eda_data)) // 4).mean()
+    eda_time = []
+    for i in range(len(eda_data)):
+        next_time = date_time + datetime.timedelta(0, i)
+        eda_time.append(next_time.strftime('%I-%M-%S'))
+    eda_data["Time"] = eda_time
+    filtered_eda_data = eda_data[eda_data["Time"].isin(toi)]
+    print(filtered_eda_data.shape)
+    return filtered_eda_data
+
+
+def save_physio_data(data_save_path, time_of_interest, individual, unique_id, cs, fms):
+    physio_data_path = physiological_data_path + "/" + individual
+    hr_data_save_path = data_save_path + "/hr"
+    eda_data_save_path = data_save_path + "/eda"
+    if not os.path.exists(hr_data_save_path):
+        os.makedirs(hr_data_save_path)
+        os.makedirs(eda_data_save_path)
+    hr_file_name = '/hr-' + unique_id + '.csv'
+    eda_file_name = '/eda-' + unique_id + '.csv'
+    full_path = hr_data_save_path + hr_file_name
+    eda_full_path = eda_data_save_path + eda_file_name
+
+    hr_data = prepare_hr_data(physio_data_path, time_of_interest)
+    eda_data = prepare_eda_data(physio_data_path, time_of_interest)
+    hr_data.insert(1, "fms", fms)
+    hr_data.insert(2, "cs_severity_class", cs)
+
+    eda_data.insert(1, "fms", fms)
+    eda_data.insert(2, "cs_severity_class", cs)
+    hr_data[["Time", "fms", "cs_severity_class", "HR"]].to_csv(full_path, index=False, float_format='%.3f')
+    eda_data[["Time", "fms", "cs_severity_class", "EDA"]].to_csv(eda_full_path, index=False, float_format='%.3f')
+
+    return hr_file_name, eda_file_name
 
 
 def process_data(simulation, individual, data_src_path, data_save_path, meta_data):
@@ -115,11 +151,11 @@ def process_data(simulation, individual, data_src_path, data_save_path, meta_dat
         head_name = save_head_tracking_data(data_save_path, head_tracking_data, time_of_interest, unique_id,
                                             class_directory, fms)
 
-        physio_name = save_physiological_data(data_save_path, time_of_interest, individual, unique_id,
-                                              class_directory, fms)
+        hr_file_name, eda_file_name = save_physio_data(data_save_path, time_of_interest, individual, unique_id,
+                                                       class_directory, fms)
 
         meta_data = meta_data.append({'uid': unique_id, 'individual': individual, 'simulation': simulation,
-                                      'eye': eye_name, 'head': head_name, 'hr': physio_name,
+                                      'eye': eye_name, 'head': head_name, 'hr': hr_file_name, 'eda': eda_file_name,
                                       'cs_severity_class': class_directory, 'fms': fms}, ignore_index=True)
     return meta_data
 
